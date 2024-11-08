@@ -70,10 +70,138 @@ ggplot(Datos, aes(x = geno, y = hi, colour = riego)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-## Modelo lineal mixto (lfa)
+# Modelo lineal mixto
+
+## Importamos datos
+
+```{r}
+source('https://inkaverse.com/setup.r')
+```
 
 ```{r}
 library(lme4)
 MODEL3 <- lme4::lmer(lfa~riego+geno+riego*geno+(1|bloque),data = Datos)
 anova(MODEL3)
+plot(MODEL3)
+```
+
+Que hacer para saber si hay significancia en un modelo lineal mixto
+
+```{r}
+ol <- boxplot(lfa ~ riego*geno,Datos)
+```
+
+### Uso de Inti
+
+```{r}
+library(inti)
+
+model <- remove_outliers(data = Datos
+                         , formula = lfa ~ riego + geno + riego*geno + (1|bloque)
+                         , plot_diag = T
+                         )
+
+model
+```
+
+# Agricolae: Comparación de medias
+
+```{r}
+modelo <- lm(formula = lfa ~  bloque + riego + geno + riego*geno
+          , data = Datos)
+
+anova(modelo)
+library(agricolae)
+
+tukey_result <- HSD.test(modelo
+                         , c("geno", "riego")
+                         , group = TRUE)
+tukey_result
+plot(tukey_result)
+```
+
+```{r}
+str(tukey_result)
+library(tidyverse)
+
+grupos <- tukey_result$groups %>% 
+  rownames_to_column("tratamientos") %>% 
+  separate(tratamientos, into = c("geno", "riego")
+           , sep = ":")
+
+str(grupos)
+```
+
+```{r}
+ggplot(grupos, aes(x = geno, y = lfa, fill = riego)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_text(aes(label = groups, y = lfa + 0.05), 
+            position = position_dodge(width = 0.9), 
+            vjust = 0) +
+  labs(x = "Genotipo", y = "LFA", fill = "Riego") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Gráfico de barras: LFA por genotipo y riego")
+```
+
+# Emmeans: comparación de medias
+
+```{r}
+modelo <- lme4::lmer(hi ~ (1|bloque) + geno*riego
+                     , data = Datos)
+
+anova(modelo)
+cm1 <- emmeans(modelo, ~ geno | riego) %>% 
+  cld(Letters = letters, reversed = T)
+
+cm1
+cm2 <- emmeans(modelo, ~ riego | geno) %>% 
+  cld(Letters = letters, reversed = T)
+cm2
+
+cm3 <- emmeans(modelo, ~ riego * geno) %>% 
+  cld(Letters = letters, reversed = T)
+cm3
+
+
+```
+
+## Gráfico
+
+```{r}
+dtcm <- as.data.frame(cm2) %>% 
+  rename(sig = ".group")
+
+ggplot(dtcm, aes(x = geno, y = emmean, fill = riego)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_text(aes(label = sig, y = emmean*1.05),
+            position = position_dodge(width = 0.9),
+            vjust = 0) +
+  labs(x = "Genotipo", y = "HI", fill = "Riego") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Gráfico de barras: HI por genotipo y riego")
+```
+
+# Análisis multivariado
+
+```{r}
+str(Datos)
+```
+
+## Correlación 
+
+```{r}
+library(psych)
+
+Datos %>% 
+  select_if(is.numeric) %>% 
+  dplyr::select(!c("block")) %>% 
+  pairs.panels(x = .
+               , hist.col="red"
+               , pch = 21
+               , stars = TRUE
+               , scale = FALSE
+               , lm = TRUE
+               ) 
 ```
